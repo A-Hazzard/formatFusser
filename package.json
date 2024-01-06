@@ -1,0 +1,17 @@
+{
+  "name": "formatFusser",
+  "version": "1.0.0",
+  "description": "ffmpeg file conversation api",
+  "main": "app.js",
+  "author": "Aaron Hazzard <62683196+A-Hazzard@users.noreply.github.com>",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "fluent-ffmpeg": "^2.1.2",
+    "multer": "^1.4.5-lts.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
