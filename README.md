@@ -9,13 +9,13 @@ To install and run this project, follow these steps:
 
 1. Clone the repository to your local machine.
 2. Navigate to the project directory.
-3. Install dependencies using npm install.
-4. Start the server with npm start. The server runs on port 3001.
+3. Install dependencies using `npm install` or `yarn install`.
+4. Start the server with `npm start`. The server runs on port 3001.
 
 ## Usage
 This API allows users to perform operations on media files, including:
 
-- Uploading media files (images, videos, and audio).
+- Uploading media files (videos and audio).
 - Converting media files to different formats.
 - Modifying video resolution.
 - Extracting audio from video files.
