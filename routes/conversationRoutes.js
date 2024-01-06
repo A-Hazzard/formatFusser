@@ -20,7 +20,7 @@ const storage = multer.diskStorage({
 
 const fileFilter = (req, file, cb) => {
     //File types
-    const fileType = /jpeg|jpg|png|gif|mp4|mp3|wave|mov/;
+    const fileType = /jpeg|jpg|png|gif|mp4|mp3|wav|mov/;
     //Check to see if the fileType is valid 
     const isValidType = fileType.test(path.extname(file.originalname).toLocaleLowerCase());
 
@@ -47,16 +47,11 @@ router.post('/convertFile', upload.single('file'), (req, res) => {
         startTime, endTime
 
     } = req.body;
+    console.log(desiredFileType)
    
     const file = req.file.path;
     const supportedResolutions = ['360', '480', '720', '1080', '1440', '2160'] //pixel values are height measured
-    console.log(
-        `Decision: ${decision}, \n
-        DesiredFileType: ${desiredFileType}, \n
-        DesiredResolution: ${desiredResolution}, \n
-        fpsValue:  ${fpsValue}, \n
-        startTime: ${startTime} and EndTime: ${endTime}`
-    )
+    console.log(`Decision: ${decision}, \n`)
     switch(decision){
         case "file conversion" : convertFile(file, desiredFileType, res, req);
         break;

@@ -2,16 +2,17 @@ const express = require('express');
 const cors = require('cors');
 const app = express();
 const conversationRoute = require('./routes/conversationRoutes');
+const contactUsRouter = require('./routes/contactUsRoute'); // Include the contactUs route
 const port = 3001;
+require('dotenv').config();
 
-
-app.use(cors()); // Enable CORS (Cross-Origin Resource Sharing) for all routes.
-app.use(express.json()); // Allows JSON data to be accepted in the request body
-app.use(express.urlencoded({ extended: true })); // For URL-encoded data like params
+app.use(cors()); // Enable CORS for all routes.
+app.use(express.json()); // Allows JSON data in the request body
+app.use(express.urlencoded({ extended: true })); // For URL-encoded data
 
 app.use('/api', conversationRoute);
-app.use(cors( { origin: 'https://dev-formatfusser.pantheonsite.io/wp-admin/post.php?post=7&action=elementor' } ) );
+app.use('/contact', contactUsRouter); // Use the contactUs router
 
-app.listen(port, ()=> {
+app.listen(port, () => {
     console.log('Server running on port', port);
-})
+});
