@@ -15,7 +15,7 @@ To install and run this project, follow these steps:
 ## Usage
 This API allows users to perform operations on media files, including:
 
-- Uploading media files (images, videos, and audio).
+- Uploading media files (videos, and audio).
 - Converting media files to different formats.
 - Modifying video resolution.
 - Extracting audio from video files.
