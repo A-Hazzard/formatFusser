@@ -5,6 +5,9 @@
   "main": "app.js",
   "author": "Aaron Hazzard <62683196+A-Hazzard@users.noreply.github.com>",
   "license": "MIT",
+  "scripts": {
+    "start": "node app.js"
+  },  
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
