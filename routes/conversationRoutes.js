@@ -146,7 +146,7 @@ const convertFile = async (video, desiredFileType, res, req) => {
                 });
             }
         })
-        .on('error', (err) => {
+        .on('error', (err, stdout, stderr) => {
             console.error('Error during conversion:', err.message);
             console.error('ffmpeg stderr:', stderr); // This will log the full error output from ffmpeg
         res.status(500).json({ error: err.message, ffmpegError: stderr });
