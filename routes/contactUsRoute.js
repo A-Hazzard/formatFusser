@@ -18,7 +18,8 @@ const transporter = nodemailer.createTransport({
 
 router.post('/send', (req, res) => {
   const { name, email, message } = req.body;
-
+    console.log(process.env.EMAIL_USER, //If env doesnt work, hard code it
+     process.env.EMAIL_PASS)
   // Validate data
   if (!name || !email || !message) {
     console.log('User left fields blank')
