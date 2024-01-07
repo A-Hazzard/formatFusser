@@ -9,16 +9,16 @@ const multer = require('multer') //for file uploads
 const path = require('path');
 
 /* USE STORAGE IF YOU WANT TO STORE FILE ON YOUR DISK INSTEAD OF MEMORY */
-// const storage = multer.diskStorage({
-//     destination: function (req, file, cb) {
-//         cb(null, 'uploads/'); // Specify the directory to save files
-//     },
-//     filename: function (req, file, cb) {
-//         // Use the original file name and append the current timestamp
-//         // to make the filename unique
-//         cb(null, Date.now() + path.extname(file.originalname));
-//     }
-// });
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'uploads/'); // Specify the directory to save files
+    },
+    filename: function (req, file, cb) {
+        // Use the original file name and append the current timestamp
+        // to make the filename unique
+        cb(null, Date.now() + path.extname(file.originalname));
+    }
+});
 
 const fileFilter = (req, file, cb) => {
     //File types
