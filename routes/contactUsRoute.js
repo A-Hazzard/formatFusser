@@ -49,10 +49,10 @@ router.post('/send', (req, res) => {
   transporter.sendMail(mailOptions, (error, info) => {
     if (error) {
       console.log(error);
-      res.status(500).send('Error sending email');
+      res.status(500).json( {error:'Error sending email' });
     } else {
       console.log('Email sent: ' + info.response);
-      res.status(200).send('Email successfully sent');
+      res.status(200).json( {message: 'Email successfully sent' });
     }
   });
 });
