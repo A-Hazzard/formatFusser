@@ -2,11 +2,24 @@ const express = require('express');
 const router = express.Router();
 const ffmpeg = require('fluent-ffmpeg');
 const fs = require('fs');
+const AWS = require('aws-sdk');
+
+
 
 // const ffmpeg = require('node-ffmpeg')
 
 const multer = require('multer') //for file uploads
 const path = require('path');
+
+AWS.config.update({
+    accessKeyId: process.env.WASABI_ACCESS_KEY_ID,
+    secretAccessKey: process.env.WASABI_SECRET_ACCESS_KEY_ID,
+  });
+  
+  const s3 = new AWS.S3({
+    endpoint: process.env.SECRET_ENDPOINT,
+  });
+
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         cb(null, 'uploads/'); // Specify the directory to save files
@@ -29,7 +42,8 @@ const fileFilter = (req, file, cb) => {
 };
 
 
-const upload = multer({ storage: storage, fileFilter});
+// const upload = multer({ storage: storage, fileFilter});
+const upload = multer({ storage: multer.memoryStorage(), fileFilter });
 
 // Conversation route
 router.post('/convertFile', upload.single('file'), (req, res) => {
@@ -87,41 +101,79 @@ router.post('/convertFile', upload.single('file'), (req, res) => {
 // Temporary store for file paths
 let filePaths = {};
 
-const convertFile = (video, desiredFileType, res, req) => {
-    const outputDirectory = path.join(__dirname, '..', 'conversions');
-    const outputFileName = path.join(outputDirectory, `${Date.now()}_converted.${desiredFileType}`);
+const convertFile = async (video, desiredFileType, res, req) => {
+    // Use a directory that is not managed by OneDrive, for example, a directory within the project
+    const outputDirectory = path.resolve(__dirname, './conversions');
 
     if (!fs.existsSync(outputDirectory)){
         fs.mkdirSync(outputDirectory, { recursive: true });
     }
 
+    const outputFileName = `${Date.now()}_converted.${desiredFileType}`;
+    const outputPath = path.join(outputDirectory, outputFileName);
+
     console.log('Converting file to', desiredFileType);
     ffmpeg(video)
-        .output(outputFileName)
-        .on('end', () => {
-            console.log(`File converted and available at ${outputFileName}`);
+        .output(outputPath)
+        .on('end', async () => {
+            console.log(`File converted and available at ${outputPath}`);
 
-            // Set proper headers to inform the browser about the download
-            res.setHeader('Content-Disposition', 'attachment; filename=' + path.basename(outputFileName));
-            res.setHeader('Content-Type', 'application/octet-stream');
+            // Instead of reading the file into a buffer, create a read stream
+            // This avoids loading the entire file into memory, which is more efficient
+            const readStream = fs.createReadStream(outputPath);
 
-            // Stream the file to the client
-            fs.createReadStream(outputFileName).pipe(res).on('finish', () => {
-                // Optionally delete the file after it's been sent
-                fs.unlink(outputFileName, (unlinkErr) => {
-                    if (unlinkErr) console.error('Error deleting file:', unlinkErr);
+            const wasabiParams = {
+                Bucket: process.env.WASABI_BUCKET_NAME,
+                Key: path.basename(outputPath),
+                Body: readStream,
+            };
+            
+            try {
+                const wasabiUploadResult = await s3.upload(wasabiParams).promise();
+                console.log('File uploaded to Wasabi:', wasabiUploadResult.Location);
+                
+                // After successful upload, send the Wasabi URL to the client
+                res.status(200).json({ url: wasabiUploadResult.Location });
+            } catch (error) {
+                console.error('Error uploading to Wasabi:', error);
+                res.status(500).json({ error: error.message });
+            } finally {
+                // Make sure to close the read stream
+                readStream.close();
+                // Delete the local file after successful upload
+                fs.unlink(outputPath, (err) => {
+                    if (err) console.error('Error deleting file:', err);
                 });
-            });
+            }
         })
         .on('error', (err) => {
             console.error('Error during conversion:', err.message);
-            if (!res.headersSent) {
-                res.status(500).json({ error: err.message });
-            }
+            res.status(500).json({ error: err.message });
         })
         .run();
 }
 
+
+const uploadFileToWasabi = async (file) => {
+    const bucketName = 'your-bucket-name'; // Replace with your Wasabi bucket name
+    const fileName = Date.now() + '-' + file.originalname;
+    const fileContent = file.buffer;
+
+    const params = {
+        Bucket: bucketName,
+        Key: fileName,
+        Body: fileContent,
+    };
+
+    try {
+        await s3.upload(params).promise();
+      return fileName; // Return the file name for further use
+    } catch (error) {
+        console.error('File upload error:', error);
+        throw error;
+    }
+};
+  
 
 
 
