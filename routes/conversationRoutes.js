@@ -116,7 +116,6 @@ const convertFile = async (video, desiredFileType, res, req) => {
     ffmpeg(video)
         .output(outputPath)
         .on('end', async () => {
-            console.log(`File converted and available at ${outputPath}`);
 
             // Instead of reading the file into a buffer, create a read stream
             // This avoids loading the entire file into memory, which is more efficient
@@ -127,7 +126,8 @@ const convertFile = async (video, desiredFileType, res, req) => {
                 Key: path.basename(outputPath),
                 Body: readStream,
             };
-            
+            console.log(`File converted and available at ${outputPath}`);
+
             try {
                 const wasabiUploadResult = await s3.upload(wasabiParams).promise();
                 console.log('File uploaded to Wasabi:', wasabiUploadResult.Location);
@@ -148,7 +148,8 @@ const convertFile = async (video, desiredFileType, res, req) => {
         })
         .on('error', (err) => {
             console.error('Error during conversion:', err.message);
-            res.status(500).json({ error: err.message });
+            console.error('ffmpeg stderr:', stderr); // This will log the full error output from ffmpeg
+        res.status(500).json({ error: err.message, ffmpegError: stderr });
         })
         .run();
 }
