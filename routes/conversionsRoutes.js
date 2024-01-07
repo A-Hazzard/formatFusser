@@ -2,34 +2,23 @@ const express = require('express');
 const router = express.Router();
 const ffmpeg = require('fluent-ffmpeg');
 const fs = require('fs');
-const AWS = require('aws-sdk');
+const os = require('os');
 
-
-
-// const ffmpeg = require('node-ffmpeg')
-
+// const AWS = require('aws-sdk');
 const multer = require('multer') //for file uploads
 const path = require('path');
 
-AWS.config.update({
-    accessKeyId: process.env.WASABI_ACCESS_KEY_ID,
-    secretAccessKey: process.env.WASABI_SECRET_ACCESS_KEY_ID,
-  });
-  
-  const s3 = new AWS.S3({
-    endpoint: process.env.SECRET_ENDPOINT,
-  });
-
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, 'uploads/'); // Specify the directory to save files
-    },
-    filename: function (req, file, cb) {
-        // Use the original file name and append the current timestamp
-        // to make the filename unique
-        cb(null, Date.now() + path.extname(file.originalname));
-    }
-});
+/* USE STORAGE IF YOU WANT TO STORE FILE ON YOUR DISK INSTEAD OF MEMORY */
+// const storage = multer.diskStorage({
+//     destination: function (req, file, cb) {
+//         cb(null, 'uploads/'); // Specify the directory to save files
+//     },
+//     filename: function (req, file, cb) {
+//         // Use the original file name and append the current timestamp
+//         // to make the filename unique
+//         cb(null, Date.now() + path.extname(file.originalname));
+//     }
+// });
 
 const fileFilter = (req, file, cb) => {
     //File types
@@ -42,6 +31,7 @@ const fileFilter = (req, file, cb) => {
 };
 
 
+/* USE THE STORAGE FUNCTION INSTEAD IF YOU WANT TO STORE FILE ON YOUR DISK INSTEAD OF MEMORY */
 // const upload = multer({ storage: storage, fileFilter});
 const upload = multer({ storage: multer.memoryStorage(), fileFilter });
 
@@ -66,11 +56,12 @@ router.post('/convertFile', upload.single('file'), (req, res) => {
     const file = req.file.path;
     const supportedResolutions = ['360', '480', '720', '1080', '1440', '2160'] //pixel values are height measured
     console.log(`Decision: ${decision}, \n`)
+    
     switch(decision){
-        case "file conversion" : convertFile(file, desiredFileType, res, req);
+        case "file conversion" : convertFile(req.file.buffer, desiredFileType, res, req);
         break;
 
-        case "fps modification" : changeFPS(file, fpsValue, res);
+        case "fps modification" : changeFPS(req.file.buffer, fpsValue, res);
         break;
 
         case "crop video" : cropVideo(file, startTime, endTime, res);
@@ -100,60 +91,101 @@ router.post('/convertFile', upload.single('file'), (req, res) => {
 
 // Temporary store for file paths
 let filePaths = {};
+const convertFile = async (videoBuffer, desiredFileType, res, req) => {
+    // Create a temporary directory for conversion
+    const tempDirectory = path.join(os.tmpdir(), 'conversions');
 
-const convertFile = async (video, desiredFileType, res, req) => {
-    // Use a directory that is not managed by OneDrive, for example, a directory within the project
-    const outputDirectory = path.resolve(__dirname, './conversions');
-
-    if (!fs.existsSync(outputDirectory)){
-        fs.mkdirSync(outputDirectory, { recursive: true });
+    if (!fs.existsSync(tempDirectory)) {
+        fs.mkdirSync(tempDirectory, { recursive: true });
     }
 
-    const outputFileName = `${Date.now()}_converted.${desiredFileType}`;
-    const outputPath = path.join(outputDirectory, outputFileName);
+    // Generate temporary file paths
+    const inputFilePath = path.join(tempDirectory, `${Date.now()}_input`);
+    const outputFilePath = path.join(tempDirectory, `${Date.now()}_converted.${desiredFileType}`);
 
-    console.log('Converting file to', desiredFileType);
-    ffmpeg(video)
-        .output(outputPath)
+    // Write the uploaded file buffer to a temporary file
+    fs.writeFileSync(inputFilePath, videoBuffer);
+
+    console.log('Starting conversion process');
+    ffmpeg(inputFilePath)
+        .output(outputFilePath)
         .on('end', async () => {
+            console.log(`File converted and available at ${outputFilePath}`);
 
-            // Instead of reading the file into a buffer, create a read stream
-            // This avoids loading the entire file into memory, which is more efficient
-            const readStream = fs.createReadStream(outputPath);
+            // Stream the file to the client
+            res.setHeader('Content-Disposition', 'attachment; filename=' + path.basename(outputFilePath));
+            res.setHeader('Content-Type', 'application/octet-stream');
 
-            const wasabiParams = {
-                Bucket: process.env.WASABI_BUCKET_NAME,
-                Key: path.basename(outputPath),
-                Body: readStream,
-            };
-            console.log(`File converted and available at ${outputPath}`);
+            const readStream = fs.createReadStream(outputFilePath);
 
-            try {
-                const wasabiUploadResult = await s3.upload(wasabiParams).promise();
-                console.log('File uploaded to Wasabi:', wasabiUploadResult.Location);
-                
-                // After successful upload, send the Wasabi URL to the client
-                res.status(200).json({ url: wasabiUploadResult.Location });
-            } catch (error) {
-                console.error('Error uploading to Wasabi:', error);
-                res.status(500).json({ error: error.message });
-            } finally {
-                // Make sure to close the read stream
-                readStream.close();
-                // Delete the local file after successful upload
-                fs.unlink(outputPath, (err) => {
-                    if (err) console.error('Error deleting file:', err);
-                });
-            }
+            readStream.pipe(res).on('finish', () => {
+                // Clean up: Delete temporary files
+                fs.unlinkSync(inputFilePath);
+                fs.unlinkSync(outputFilePath);
+            });
         })
-        .on('error', (err, stdout, stderr) => {
+        .on('error', (err) => {
             console.error('Error during conversion:', err.message);
-            console.error('ffmpeg stderr:', stderr); // This will log the full error output from ffmpeg
-        res.status(500).json({ error: err.message, ffmpegError: stderr });
+            // Clean up even if there's an error
+            fs.unlinkSync(inputFilePath);
+            if (fs.existsSync(outputFilePath)) {
+                fs.unlinkSync(outputFilePath);
+            }
+            res.status(500).json({ error: err.message });
         })
         .run();
-}
+};
 
+
+
+
+ // Upload to Wasabi inside the `convertFile` function
+// const convertFile = async (video, desiredFileType, res, req) => {
+//     // Directory within the project, not managed by OneDrive
+//     const outputDirectory = path.resolve(__dirname, './conversions');
+
+//     // Create directory if it doesn't exist
+//     if (!fs.existsSync(outputDirectory)) fs.mkdirSync(outputDirectory, { recursive: true });
+    
+
+//     // Generate the output file name
+//     const outputFileName = `${Date.now()}_converted.${desiredFileType}`;
+//     const outputPath = path.join(outputDirectory, outputFileName);
+
+//     console.log('Converting file to', desiredFileType);
+    
+//     ffmpeg(video)
+//         .output(outputPath)
+//         .on('end', async () => {
+//             console.log(`File converted and available at ${outputPath}`);
+            
+//             // Upload the file to Cloudinary
+//             try {
+//                 let result = await cloudinary.uploader.upload(outputPath, {
+//                   resource_type: "auto", // Cloudinary will auto-detect the resource type (image/video/audio)
+//                   public_id: "conversions/" + path.basename(outputPath, `.${desiredFileType}`) // Optional: specify a public ID for the file
+//                 });
+                
+//                 console.log('File uploaded to Cloudinary:', result.secure_url);
+                
+//                 // After successful upload, send the Cloudinary URL to the client
+//                 res.status(200).json({ url: result.secure_url });
+//             } catch (error) {
+//                 console.error('Error uploading to Cloudinary:', error);
+//                 res.status(500).json({ error: error.message });
+//             } finally {
+//                 // Delete the local file after successful upload
+//                 fs.unlink(outputPath, (err) => {
+//                     if (err) console.error('Error deleting file:', err);
+//                 });
+//             }
+//         })
+//         .on('error', (err) => {
+//             console.error('Error during conversion:', err.message);
+//             res.status(500).json({ error: err.message });
+//         })
+//         .run();
+// }
 
 const uploadFileToWasabi = async (file) => {
     const bucketName = 'your-bucket-name'; // Replace with your Wasabi bucket name
