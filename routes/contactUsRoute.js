@@ -29,7 +29,7 @@ router.post('/send', (req, res) => {
 
   const mailOptions = {
     from: process.env.EMAIL_USER,
-    to: process.env.EMAIL_USER,
+    to: process.env.EMAIL_RECIEVER,
     subject: `New Contact Message from ${name}`,
     html: `
       <div style="font-family: Arial, sans-serif; color: #333;">
